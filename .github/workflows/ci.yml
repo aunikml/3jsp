@@ -1,0 +1,75 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  frontend-checks:
+    name: Frontend Lint, Typecheck & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: frontend/package.json
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run TypeScript typecheck & production build
+        run: npm run build
+
+  backend-checks:
+    name: Backend System Checks & Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Django System Checks
+        run: python manage.py check --settings=config.settings.development
+        env:
+          USE_SQLITE_FALLBACK: "True"
+          SECRET_KEY: "ci-testing-secret-key"
+
+      - name: Run Django Migrations Check
+        run: python manage.py makemigrations --check --dry-run --settings=config.settings.development
+        env:
+          USE_SQLITE_FALLBACK: "True"
+          SECRET_KEY: "ci-testing-secret-key"
+
+      - name: Run Backend Test Suite
+        run: python manage.py test apps --settings=config.settings.development
+        env:
+          USE_SQLITE_FALLBACK: "True"
+          SECRET_KEY: "ci-testing-secret-key"
